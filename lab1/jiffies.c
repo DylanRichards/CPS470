@@ -8,8 +8,8 @@
 #include <linux/kernel.h>
 #include <linux/proc_fs.h>
 #include <linux/jiffies.h>
-#include <asm/uaccess.h>
 #include <linux/version.h>
+#include <asm/uaccess.h>
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
 #define HAVE_PROC_OPS
