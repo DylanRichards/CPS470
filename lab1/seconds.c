@@ -8,27 +8,37 @@
 #include <linux/kernel.h>
 #include <linux/proc_fs.h>
 #include <linux/jiffies.h>
+#include <linux/version.h>
 #include <asm/uaccess.h>
 #include <asm/param.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
+#define HAVE_PROC_OPS
+#endif
 
 #define PROC_NAME "seconds"
 #define BUFFER_SIZE 128
 
-static ssize_t my_proc_read(struct file *file, char *buf, size_t count, loff_t *pos);
+ssize_t proc_read(struct file *file, char *buf, size_t count, loff_t *pos);
 
-static struct proc_ops my_ops = {
-        .proc_read = my_proc_read
+#ifdef HAVE_PROC_OPS
+static const struct proc_ops seconds_ops = {
+        .proc_read = proc_read,
 };
+#else
+static const struct file_operations seconds_ops = {
+        .owner = THIS_MODULE,
+        .read = proc_read,
+};
+#endif
 
 long long unsigned int start_jiffies;
-
 
 /* This function is called when the module is loaded. */
 static int proc_init(void)
 {
         // creates the /proc/seconds entry
-        proc_create(PROC_NAME, 0, NULL, &my_ops);
+        proc_create(PROC_NAME, 0, NULL, &seconds_ops);
         start_jiffies = get_jiffies_64();
 	return 0;
 }
@@ -42,7 +52,7 @@ static void proc_exit(void) {
 /**
  * This function is called each time the /proc/seconds is read.
  */
-static ssize_t my_proc_read(struct file *file, char __user *usr_buf, size_t count, loff_t *pos)
+ssize_t proc_read(struct file *file, char __user *usr_buf, size_t count, loff_t *pos)
 {
         long long unsigned int end_jiffies = get_jiffies_64();
         int elapsed;
@@ -62,7 +72,7 @@ static ssize_t my_proc_read(struct file *file, char __user *usr_buf, size_t coun
         rv = sprintf(buffer, "Elapsed time: %d seconds\n", elapsed);
 
         // copies the contents of buffer to userspace usr_buf
-        copy_to_user(usr_buf, buffer, rv);
+        raw_copy_to_user(usr_buf, buffer, rv);
 
         return rv;
 }

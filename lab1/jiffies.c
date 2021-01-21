@@ -9,22 +9,33 @@
 #include <linux/proc_fs.h>
 #include <linux/jiffies.h>
 #include <asm/uaccess.h>
+#include <linux/version.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
+#define HAVE_PROC_OPS
+#endif
 
 #define PROC_NAME "jiffies"
 #define BUFFER_SIZE 128
 
-static ssize_t my_proc_read(struct file *file, char *buf, size_t count, loff_t *pos);
+ssize_t proc_read(struct file *file, char *buf, size_t count, loff_t *pos);
 
-static struct proc_ops my_ops = {
-    .proc_read = my_proc_read
+#ifdef HAVE_PROC_OPS
+static const struct proc_ops jiffies_ops = {
+        .proc_read = proc_read,
 };
+#else
+static const struct file_operations jiffies_ops = {
+        .owner = THIS_MODULE,
+        .read = proc_read,
+};
+#endif
 
 /* This function is called when the module is loaded. */
 static int proc_init(void)
 {
         // creates the /proc/jiffies entry
-        proc_create(PROC_NAME, 0, NULL, &my_ops);
+        proc_create(PROC_NAME, 0, NULL, &jiffies_ops);
         return 0;
 }
 
@@ -38,7 +49,7 @@ static void proc_exit(void)
 /**
  * This function is called each time the /proc/jiffies is read.
  */
-static ssize_t my_proc_read(struct file *file, char __user *usr_buf, size_t count, loff_t *pos)
+ssize_t proc_read(struct file *file, char __user *usr_buf, size_t count, loff_t *pos)
 {
         int rv = 0;
         char buffer[BUFFER_SIZE];
@@ -54,7 +65,7 @@ static ssize_t my_proc_read(struct file *file, char __user *usr_buf, size_t coun
         rv = sprintf(buffer, "Jiffies: %llu\n", get_jiffies_64());
 
         // copies the contents of buffer to userspace usr_buf
-        copy_to_user(usr_buf, buffer, rv);
+        raw_copy_to_user(usr_buf, buffer, rv);
 
         return rv;
 }
