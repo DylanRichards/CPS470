@@ -2,6 +2,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <errno.h>
 
 #define MAX_LINE 80 /* 80 chars per line, per command */
 #define MAX_ARGS (MAX_LINE / 2 + 1) /* command line (of 80) has max of 40 arguments */
@@ -12,6 +15,7 @@ void refresh_args(char *args[]);
 void init_command(char *command);
 int get_input(char *command);
 int parse_input(char *args[], char *original_command);
+void run_command(char *args[]);
 
 int main(void) {
 	char *args[MAX_ARGS];
@@ -27,14 +31,14 @@ int main(void) {
 
 		refresh_args(args);
 
-		if(!get_input(command)) continue;
+		if (!get_input(command)) continue;
 
 		int args_num = parse_input(args, command);
 
-        int i;
-        for (i = 0; i < args_num; i++) {
-            printf("arg[%d]: %s\n", i, args[i]);
-        }
+        if (args_num == 0) continue;
+        if (strcmp(args[0], "exit") == 0) break;
+
+        run_command(args);
 
 		/**
 		 * After reading user input, the steps are:
@@ -43,6 +47,8 @@ int main(void) {
 		 * (3) if command included &, parent will invoke wait()
 		 */
 	}
+
+    refresh_args(args);
 
 	return 0;
 }
@@ -92,4 +98,20 @@ int parse_input(char *args[], char *original_command) {
         token = strtok(NULL, DELIMITER);
     }
     return i;
+}
+
+void run_command(char *args[]) {
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        fprintf(stderr, "Fork Failed\n");
+    } else if (pid == 0) {
+        int err = execvp(args[0], args);
+        if (err == -1) {
+            fprintf(stderr, "Command not found\n");
+            exit(errno);
+        }
+    } else {
+        wait(NULL);
+    }
 }
