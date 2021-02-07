@@ -4,7 +4,9 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #define MAX_LINE 80 /* 80 chars per line, per command */
 #define MAX_ARGS (MAX_LINE / 2 + 1) /* command line (of 80) has max of 40 arguments */
@@ -15,7 +17,8 @@ void refresh_args(char *args[]);
 void init_command(char *command);
 int get_input(char *command);
 int parse_input(char *args[], char *original_command);
-void run_command(char *args[]);
+void run_command(char *args[], int args_num);
+void io_redirection(char *args[], int *args_num);
 
 int main(void) {
 	char *args[MAX_ARGS];
@@ -38,14 +41,7 @@ int main(void) {
         if (args_num == 0) continue;
         if (strcmp(args[0], "exit") == 0) break;
 
-        run_command(args);
-
-		/**
-		 * After reading user input, the steps are:
-		 * (1) fork a child process
-		 * (2) the child process will invoke execvp()
-		 * (3) if command included &, parent will invoke wait()
-		 */
+        run_command(args, args_num);
 	}
 
     refresh_args(args);
@@ -100,12 +96,13 @@ int parse_input(char *args[], char *original_command) {
     return i;
 }
 
-void run_command(char *args[]) {
+void run_command(char *args[], int args_num) {
     pid_t pid = fork();
 
     if (pid < 0) {
         fprintf(stderr, "Fork Failed\n");
     } else if (pid == 0) {
+        io_redirection(args, &args_num);
         int err = execvp(args[0], args);
         if (err == -1) {
             fprintf(stderr, "Command not found\n");
@@ -113,5 +110,36 @@ void run_command(char *args[]) {
         }
     } else {
         wait(NULL);
+    }
+}
+
+void io_redirection(char *args[], int *args_num) {
+    int i;
+    for (i = 0; i < *args_num; i++){
+        if (strcmp("<", args[i]) == 0 && i < *args_num - 1) {
+            char *pathname = args[i+1];
+
+            mode_t read_mask = S_IRUSR | S_IRGRP | S_IROTH;
+
+            int fd = open(pathname, O_RDONLY, read_mask);
+            dup2(fd, STDIN_FILENO);
+            
+            args[i] = NULL;
+            args[i+1] = NULL;
+            *args_num -= 2;
+        }
+        if (strcmp(">", args[i]) == 0 && i < *args_num - 1) {
+            char *pathname = args[i+1];
+
+            mode_t read_mask = S_IRUSR | S_IRGRP | S_IROTH;
+            mode_t write_mask = S_IWUSR | S_IWGRP | S_IWOTH;
+
+            int fd = open(pathname, O_WRONLY | O_CREAT, read_mask | write_mask);
+            dup2(fd, STDOUT_FILENO);
+
+            args[i] = NULL;
+            args[i+1] = NULL;
+            *args_num -= 2;
+        }
     }
 }
