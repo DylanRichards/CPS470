@@ -28,7 +28,7 @@ void execute_command(char *args[]);
  * A while loop that prints a shell prompt, gathers input, parses, and runs the command.
  * If the input is "exit" the loop breaks
  * 
- * Return: void
+ * Return: EXIT_SUCCESS
  */
 int main(void) {
 	char *args[MAX_ARGS];
