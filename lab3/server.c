@@ -10,8 +10,10 @@
 #include <sys/types.h>
 #include <signal.h>
 
+#define MAX_CLIENTS 4
 #define BUFFER_SZ 2048
 
+static _Atomic unsigned int cli_count = 0;
 static int uid = 10; // Client or user id
 
 /* Client structure */
@@ -31,6 +33,8 @@ void *handle_client(void *arg){
 	int leave_flag = 0; // Loop termination flag
 
 	client_t *cli = (client_t *)arg; // Define client structure from arguments
+
+	cli_count++;
 
 	// Receive a message from a socket
 	recv(cli->sockfd, name, 32, 0);
@@ -73,6 +77,8 @@ void *handle_client(void *arg){
 	/* Delete client from pool and yield thread */
 	close(cli->sockfd);
 	free(cli);
+	cli_count--;
+	pthread_exit(0);
 	
 	return NULL;
 }
@@ -89,11 +95,13 @@ int main(int argc, char **argv){
 	int port = atoi(argv[1]); // Accept user input as port number
 	int option = 1;
 	int listenfd = 0;	// Server socket file descriptor
-    int connfd = 0;
+    int connfd = 0;	// return value of connect()
 	struct sockaddr_in serv_addr; // Define address format for server
 	struct sockaddr_in cli_addr; // Define address format for client
-	
 
+	pthread_t tid[MAX_CLIENTS]; /* the thread identifier */
+	pthread_attr_t attr; /* set of thread attributes */
+	
 	// Socket settings 
 	// Linux IPv4 protocol implementation, run "man 7 ip" for details
 	listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -115,19 +123,29 @@ int main(int argc, char **argv){
 	// Promote Welcome message
 	printf("=== WELCOME TO THE CHATROOM ===\n");
 	
-	// Accept client connection 
-	socklen_t clilen = sizeof(cli_addr); // Client address
-	connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &clilen);
+	/* set the default attributes of the thread */ 
+	pthread_attr_init(&attr);
 
-	// Client settings 
-	client_t *cli = (client_t *)malloc(sizeof(client_t));
-	cli->address = cli_addr;
-	cli->sockfd = connfd;
-	cli->uid = uid++;
+	while (1) {
+		// Accept client connection 
+		socklen_t clilen = sizeof(cli_addr); // Client address
+		connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &clilen);
 
-	
-	// Handle client connection	
-	handle_client(cli);
+		if (cli_count == MAX_CLIENTS) {
+			fprintf(stderr, "Max clients reached. No more!");
+			close(connfd);
+		} else {
+			// Client settings 
+			client_t *cli = (client_t *)malloc(sizeof(client_t));
+			cli->address = cli_addr;
+			cli->sockfd = connfd;
+			cli->uid = uid++;
+			
+			// Handle client connection
+			/* create the thread */
+			pthread_create(&tid[cli_count], &attr, handle_client, (void *)cli);
+		}
+	}
 	
 	return EXIT_SUCCESS;
 }
