@@ -24,7 +24,32 @@ typedef struct{
 	char name[32];
 } client_t;
 
+// thread pool
+client_t *thread_pool[MAX_CLIENTS];
 
+// add a thread to the pool
+int pool_add(client_t *cl) {
+	// add cl to thread pool to the first null
+	for (int i = 0; i < MAX_CLIENTS; i++) {
+		if (thread_pool[i] == NULL) {
+			thread_pool[i] = cl;
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+// remove thread from the pool
+void pool_remove(client_t *cl) {
+	// assign null to thread pool where uid == cl uid
+	for (int i = 0; i < MAX_CLIENTS; i++) {
+		if (thread_pool[i] != NULL && thread_pool[i]->uid == cl->uid) {
+			thread_pool[i] = NULL;
+			break;
+		}
+	}
+}
 
 /* Handle all communication with the client */
 void *handle_client(void *arg){
@@ -75,6 +100,7 @@ void *handle_client(void *arg){
 	}
 
 	/* Delete client from pool and yield thread */
+	pool_remove(cli);
 	close(cli->sockfd);
 	free(cli);
 	cli_count--;
@@ -131,20 +157,19 @@ int main(int argc, char **argv){
 		socklen_t clilen = sizeof(cli_addr); // Client address
 		connfd = accept(listenfd, (struct sockaddr*)&cli_addr, &clilen);
 
-		if (cli_count == MAX_CLIENTS) {
-			fprintf(stderr, "Max clients reached. No more!");
-			close(connfd);
-		} else {
-			// Client settings 
-			client_t *cli = (client_t *)malloc(sizeof(client_t));
-			cli->address = cli_addr;
-			cli->sockfd = connfd;
-			cli->uid = uid++;
-			
-			// Handle client connection
-			/* create the thread */
-			pthread_create(&tid[cli_count], &attr, handle_client, (void *)cli);
-		}
+		// Client settings 
+		client_t *cli = (client_t *)malloc(sizeof(client_t));
+		cli->address = cli_addr;
+		cli->sockfd = connfd;
+		cli->uid = uid++;
+
+		while (pool_add(cli) == 0);
+
+		// add the client to the pool
+		// Handle client connection
+		/* create the thread */
+		pthread_create(&tid[cli_count], &attr, handle_client, (void *)cli);
+		
 	}
 	
 	return EXIT_SUCCESS;
