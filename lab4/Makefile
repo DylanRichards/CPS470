@@ -1,0 +1,6 @@
+compile:
+	gcc -Wall -g3 -fsanitize=address -pthread server.c threadpool.c -o server
+	gcc -Wall -g3 -fsanitize=address -pthread client.c -o client
+clean:
+	rm server
+	rm client
