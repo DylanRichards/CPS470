@@ -34,7 +34,7 @@ int main(void)
     work_submit(&add, &work);
 
     // may be helpful 
-    //sleep(3);
+    sleep(3);
 
     pool_shutdown();
 

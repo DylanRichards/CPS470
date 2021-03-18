@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <semaphore.h>
-#include <fcntl.h>  
+#include <fcntl.h>
 #include "threadpool.h"
 
 #define NUMBER_OF_THREADS 3
@@ -12,29 +12,26 @@
 sem_t *sem;
 
 // define mutex lock
-pthread_mutex mutex;
+pthread_mutex_t mutex;
 
 pthread_t tid[NUMBER_OF_THREADS]; /* the thread identifier */
 
-// this represents work that has to be 
+// this represents work that has to be
 // completed by a thread in the pool
-typedef struct 
-{
-    void (*function)(void *p);
+typedef struct {
+	void (*function)(void *p);
 	void *data;
-}
-task;
+} task;
 
 // the work queue
 task clientqueue[QUEUE_SIZE];
 int front; // points to the front of the queue, the first job in the queue
-int rear; // points to the rear of the queue, the next available position in the queue
+int rear;  // points to the rear of the queue, the next available position in the queue
 int count;
 
 // insert a task into the queue
 // returns 1 if successful, 0 is queue is full.
-int enqueue(task t) 
-{
+int enqueue(task t) {
 	int rv = 0;
 
 	pthread_mutex_lock(&mutex);
@@ -47,20 +44,19 @@ int enqueue(task t)
 	}
 	pthread_mutex_unlock(&mutex);
 
-    return rv;
+	return rv;
 }
 
 // remove a task from the queue
-task dequeue() 
-{
-    task t;
+task dequeue() {
+	task t;
 
 	pthread_mutex_lock(&mutex);
 	/* critical section */
 	t = clientqueue[front];
 	front = (front + 1) % QUEUE_SIZE;
 	pthread_mutex_unlock(&mutex);
-	
+
 	return t;
 }
 
@@ -69,7 +65,7 @@ task dequeue()
  */
 void execute(void (*somefunction)(void *p), void *p)
 {
-    (*somefunction)(p);
+	(*somefunction)(p);
 }
 
 // how the client submits work to the thread pool
@@ -87,19 +83,13 @@ int work_submit(void (*somefunction)(void *p), void *p)
 	if (enqueue(task1)) {
 		sem_post(sem); // tell the pool_scheduling that a job is ready
 		return QUEUE_SUCCESS;
-	} else {
-		return QUEUE_REJECTED;
 	}
-    // clientqueue.function = somefunction;
-	// clientqueue.data = p;
-	
-	return 0;
-    
+
+	return QUEUE_REJECTED;
 }
 
 // schedule available threads from pool
-void *pool_scheduling(void *param)
-{
+void *pool_scheduling(void *param) {
 	while (1) {
 		printf("Thread %lu is ready ...\n", pthread_self());
 		sem_wait(sem); // wait for jobs
@@ -116,8 +106,7 @@ void *pool_scheduling(void *param)
 }
 
 // initialize the thread pool
-void pool_init(void)
-{
+void pool_init(void) {
 	// init mutex
 	pthread_mutex_init(&mutex, NULL);
 
@@ -126,14 +115,14 @@ void pool_init(void)
 	sem = sem_open("SEM", O_CREAT, 0666, 0);
 
 	// create NUMBER_OF_THREADS of threads
-	for (int i = 0; i < NUMBER_OF_THREADS; i++){
+	for (int i = 0; i < NUMBER_OF_THREADS; i++) {
 		pthread_create(&tid[i], NULL, pool_scheduling, NULL);
 	}
 }
 
 // shutdown the thread pool
-void pool_shutdown(void)
-{
-	pthread_cancel(tid);
+void pool_shutdown(void) {
+	for (int i = 0; i < NUMBER_OF_THREADS; i++) {
+		pthread_cancel(tid[i]);
+	}
 }
-

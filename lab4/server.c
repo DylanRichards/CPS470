@@ -15,7 +15,6 @@
 
 static int uid = 1;
 static _Atomic unsigned int cli_count = 0;
-pthread_t tid[MAX_CLIENTS]; /* the thread identifier */
 
 /* Client structure */
 typedef struct{
@@ -26,7 +25,7 @@ typedef struct{
 } client_t;
 
 /* Handle all communication with the client */
-void *handle_client(void *arg){
+void handle_client(void *arg){
 	char buff_out[BUFFER_SZ];
 	char name[32];
 	int leave_flag = 0;
@@ -76,8 +75,6 @@ void *handle_client(void *arg){
 	close(cli->sockfd);
 	cli_count--;
 	free(cli);
-	
-	return NULL;
 }
 
 int main(int argc, char **argv){
@@ -110,6 +107,9 @@ int main(int argc, char **argv){
 	// Listen for connections on a socket
 	listen(listenfd, 10);
 
+	// initialize the thread pool
+	pool_init();
+
 	printf("=== WELCOME TO THE CHATROOM ===\n");
 	
 	while(1){
@@ -125,9 +125,8 @@ int main(int argc, char **argv){
 		cli->uid = uid++;
 		
 		// Handle client connection	
-		/* create the thread */
-		work_submit(&handle_client, (void*)cli);
-		// pthread_create(&tid[cli_count], NULL, &handle_client, (void*)cli);
+		/* submit work to the thread pool */
+		work_submit(&handle_client, cli);
 	}
 
 	return EXIT_SUCCESS;

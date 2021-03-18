@@ -169,7 +169,6 @@ int main(int argc, char **argv){
 		// Handle client connection
 		/* create the thread */
 		pthread_create(&tid[cli_count], &attr, handle_client, (void *)cli);
-		
 	}
 	
 	return EXIT_SUCCESS;
